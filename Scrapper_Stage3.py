@@ -32,7 +32,7 @@ async def run_enhanced_scraping():
 
     # Process each collection
     for collection_type, config in url_config.items():
-        print(f"🔄 Scraping collection: {collection_type}")
+        print(f"Scraping collection: {collection_type}")
         extracted_items = []
 
         base_url = config["base_url"]
@@ -55,13 +55,13 @@ async def run_enhanced_scraping():
                     item['collection'] = collection_type
 
                 extracted_items.extend(items)
-                print(f"    ✅ Extracted {len(items)} items")
+                print(f"     Extracted {len(items)} items")
 
                 # Small delay to be respectful
                 await asyncio.sleep(1)
 
             except Exception as e:
-                print(f"    ❌ Failed to process {url}: {e}")
+                print(f"    Failed to process {url}: {e}")
 
         # Save collection data
         collection_file = f"data/collections/{collection_type}.json"
@@ -69,13 +69,13 @@ async def run_enhanced_scraping():
             json.dump(extracted_items, f, indent=2, ensure_ascii=False)
 
         all_collections[collection_type] = extracted_items
-        print(f"💾 Saved {len(extracted_items)} items to {collection_file}")
+        print(f" Saved {len(extracted_items)} items to {collection_file}")
 
-    print("\n🎉 Scraping completed!")
+    print("\n Scraping completed!")
 
     # Summary
     total_items = sum(len(items) for items in all_collections.values())
-    print(f"📊 Total items extracted: {total_items}")
+    print(f"Total items extracted: {total_items}")
 
     for collection, items in all_collections.items():
         print(f"  - {collection}: {len(items)} items")
