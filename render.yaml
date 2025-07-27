@@ -6,7 +6,15 @@ services:
     buildCommand: |
       pip install --upgrade pip &&
       pip install --no-cache-dir -r requirements.txt &&
-      python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
+      python -c "
+      import os
+      os.environ['TRANSFORMERS_OFFLINE'] = '0'
+      os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
+      from sentence_transformers import SentenceTransformer
+      print('Loading model...')
+      model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+      print('Model loaded successfully!')
+      "
     startCommand: python main.py
     healthCheckPath: /health
     envVars:
@@ -16,10 +24,16 @@ services:
         value: /opt/render/project/src/models
       - key: HF_HOME
         value: /opt/render/project/src/models
-      - key: PYTHONUNBUFFERED
-        value: "1"
       - key: TORCH_HOME
         value: /opt/render/project/src/models/torch
+      - key: HF_HUB_CACHE
+        value: /opt/render/project/src/models/hub
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: HF_HUB_DISABLE_TELEMETRY
+        value: "1"
+      - key: TRANSFORMERS_OFFLINE
+        value: "0"
       - key: PINECONE_API_KEY
         sync: false
       - key: GROQ_API_KEY
