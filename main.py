@@ -696,42 +696,15 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Enhanced CORS Configuration
+# SIMPLIFIED CORS - let middleware handle everything
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:8080",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:8080",
-        "https://airport-chatbot-front-end.vercel.app",
-        "https://*.vercel.app",
-    ],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
-    allow_headers=[
-        "Accept",
-        "Accept-Language",
-        "Content-Language",
-        "Content-Type",
-        "Authorization",
-        "X-Requested-With",
-        "Origin",
-        "Access-Control-Request-Method",
-        "Access-Control-Request-Headers",
-    ],
+    allow_origins=["*"],  # Allow all origins temporarily
+    allow_credentials=False,  # Set to False for simplicity
+    allow_methods=["*"],  # Allow all methods
+    allow_headers=["*"],  # Allow all headers
     expose_headers=["*"]
 )
-
-# Manual CORS preflight handler
-@app.options("/{path:path}")
-async def options_handler(path: str):
-    """Handle CORS preflight requests"""
-    return {
-        "message": "OK",
-        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "headers": ["*"]
-    }
 
 @app.get("/", response_model=HealthResponse)
 @app.get("/health", response_model=HealthResponse)
