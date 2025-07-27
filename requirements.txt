@@ -3,7 +3,8 @@ uvicorn[standard]==0.24.0
 pydantic==2.5.0
 python-multipart==0.0.6
 pinecone==7.3.0
-sentence-transformers==2.2.2
+sentence-transformers==2.7.0
+huggingface-hub==0.23.4
 groq==0.4.1
 langchain==0.2.16
 langchain-core==0.2.38
@@ -11,3 +12,5 @@ langchain-community==0.2.16
 langsmith==0.1.120
 numpy==1.24.3
 python-dotenv==1.0.0
+torch==2.1.0
+transformers==4.41.2
