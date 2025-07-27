@@ -55,9 +55,9 @@ class ChangiDataPreprocessor:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     collections_data[collection_type] = data
-                    logger.info(f"✅ Loaded {collection_type}: {len(data)} items")
+                    logger.info(f" Loaded {collection_type}: {len(data)} items")
             else:
-                logger.warning(f"❌ File not found: {file_path}")
+                logger.warning(f" File not found: {file_path}")
                 collections_data[collection_type] = []
 
         return collections_data
@@ -90,7 +90,7 @@ class ChangiDataPreprocessor:
         processed_chunks = []
 
         for collection_type, items in collections_data.items():
-            logger.info(f"🔄 Processing {collection_type}...")
+            logger.info(f" Processing {collection_type}...")
 
             strategy = self.text_strategies.get(collection_type, self._process_generic_text)
 
@@ -120,7 +120,7 @@ class ChangiDataPreprocessor:
 
                 processed_chunks.append(chunk)
 
-        logger.info(f"📊 Total processed chunks: {len(processed_chunks)}")
+        logger.info(f" Total processed chunks: {len(processed_chunks)}")
         return processed_chunks
 
     def _extract_core_content(self, item: Dict, collection_type: str) -> str:
@@ -473,13 +473,13 @@ class ChangiEmbeddingGenerator:
         self.model_name = model_name
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-        logger.info(f"🤖 Loading embedding model: {model_name}")
+        logger.info(f"Loading embedding model: {model_name}")
         self.model = SentenceTransformer(model_name, device=self.device)
-        logger.info(f"📏 Embedding dimension: {self.model.get_sentence_embedding_dimension()}")
+        logger.info(f" Embedding dimension: {self.model.get_sentence_embedding_dimension()}")
 
     def generate_embeddings(self, chunks: List[Dict], batch_size: int = 32) -> List[Dict]:
         """Generate embeddings for all chunks"""
-        logger.info(f"🧠 Generating embeddings for {len(chunks)} chunks...")
+        logger.info(f" Generating embeddings for {len(chunks)} chunks...")
 
         # Extract texts for embedding
         texts = [chunk['text'] for chunk in chunks]
@@ -499,7 +499,7 @@ class ChangiEmbeddingGenerator:
         for chunk, embedding in zip(chunks, embeddings):
             chunk['values'] = embedding.tolist()
 
-        logger.info(f"✅ Generated {len(embeddings)} embeddings")
+        logger.info(f" Generated {len(embeddings)} embeddings")
         return chunks
 
 
@@ -523,15 +523,15 @@ class PineconeUploader:
             existing_indexes = [index.name for index in self.pc.list_indexes()]
 
             if index_name not in existing_indexes:
-                logger.error(f"❌ Index '{index_name}' not found!")
+                logger.error(f" Index '{index_name}' not found!")
                 logger.info(f"Available indexes: {existing_indexes}")
                 raise ValueError(f"Index '{index_name}' does not exist")
 
             self.index = self.pc.Index(index_name)
-            logger.info(f"📌 Connected to Pinecone index: {index_name}")
+            logger.info(f" Connected to Pinecone index: {index_name}")
 
         except Exception as e:
-            logger.error(f"❌ Failed to connect to Pinecone: {e}")
+            logger.error(f" Failed to connect to Pinecone: {e}")
             raise
 
     def create_index_if_not_exists(self, dimension: int = 384):
@@ -557,12 +557,12 @@ class PineconeUploader:
                 while not self.pc.describe_index(self.index_name).status['ready']:
                     time.sleep(1)
 
-                logger.info(f"✅ Index '{self.index_name}' created successfully")
+                logger.info(f" Index '{self.index_name}' created successfully")
 
             self.index = self.pc.Index(self.index_name)
 
         except Exception as e:
-            logger.error(f"❌ Failed to create index: {e}")
+            logger.error(f" Failed to create index: {e}")
             raise
 
     def upsert_with_namespaces(self, chunks: List[Dict], batch_size: int = 100):
@@ -576,7 +576,7 @@ class PineconeUploader:
                 namespace_groups[namespace] = []
             namespace_groups[namespace].append(chunk)
 
-        logger.info(f"📦 Upserting to {len(namespace_groups)} namespaces:")
+        logger.info(f" Upserting to {len(namespace_groups)} namespaces:")
         for ns, items in namespace_groups.items():
             logger.info(f"  {ns}: {len(items)} items")
 
@@ -584,7 +584,7 @@ class PineconeUploader:
 
         # Upsert each namespace separately
         for namespace, namespace_chunks in namespace_groups.items():
-            logger.info(f"🔄 Upserting namespace: {namespace}")
+            logger.info(f" Upserting namespace: {namespace}")
 
             # Batch upsert within namespace
             for i in tqdm(range(0, len(namespace_chunks), batch_size),
@@ -618,18 +618,18 @@ class PineconeUploader:
                             logger.error(f"❌ Failed to upsert batch after {retries} attempts: {e}")
                             raise
                         else:
-                            logger.warning(f"⚠️ Upsert attempt {attempt + 1} failed, retrying...")
+                            logger.warning(f"⚠ Upsert attempt {attempt + 1} failed, retrying...")
                             import time
                             time.sleep(2 ** attempt)  # Exponential backoff
 
-        logger.info(f"🎯 Successfully upserted {total_upserted} vectors across {len(namespace_groups)} namespaces")
+        logger.info(f" Successfully upserted {total_upserted} vectors across {len(namespace_groups)} namespaces")
 
         # Verify upload
         self.verify_upload(namespace_groups)
 
     def verify_upload(self, namespace_groups: Dict[str, List[Dict]]):
         """Verify that data was uploaded correctly"""
-        logger.info("🔍 Verifying upload...")
+        logger.info(" Verifying upload...")
 
         try:
             # Get index stats
@@ -641,14 +641,14 @@ class PineconeUploader:
                     expected_count = len(chunks)
 
                     if uploaded_count == expected_count:
-                        logger.info(f"✅ {namespace}: {uploaded_count}/{expected_count} vectors")
+                        logger.info(f" {namespace}: {uploaded_count}/{expected_count} vectors")
                     else:
-                        logger.warning(f"⚠️ {namespace}: {uploaded_count}/{expected_count} vectors (mismatch)")
+                        logger.warning(f" {namespace}: {uploaded_count}/{expected_count} vectors (mismatch)")
                 else:
-                    logger.warning(f"⚠️ {namespace}: Namespace not found in stats (may need time to reflect)")
+                    logger.warning(f" {namespace}: Namespace not found in stats (may need time to reflect)")
 
         except Exception as e:
-            logger.warning(f"⚠️ Could not verify upload: {e}")
+            logger.warning(f" Could not verify upload: {e}")
 
     def test_query(self, namespace: str, text: str = "test query", top_k: int = 3):
         """Test query to verify namespace works"""
@@ -665,7 +665,7 @@ class PineconeUploader:
             return results
 
         except Exception as e:
-            logger.error(f"❌ Test query failed for namespace '{namespace}': {e}")
+            logger.error(f" Test query failed for namespace '{namespace}': {e}")
             return None
 
 
@@ -683,12 +683,12 @@ def main():
     if not PINECONE_API_KEY:
         raise ValueError("PINECONE_API_KEY not provided")
 
-    logger.info("🚀 Starting Changi Airport Data Pipeline - Stage 2")
+    logger.info(" Starting Changi Airport Data Pipeline - Stage 2")
     logger.info("=" * 60)
 
     try:
         # Step 1: Load and preprocess data
-        logger.info("📂 Step 1: Loading JSON files...")
+        logger.info(" Step 1: Loading JSON files...")
         preprocessor = ChangiDataPreprocessor()
         collections_data = preprocessor.load_json_files(DATA_DIR)
 
@@ -696,20 +696,20 @@ def main():
             raise ValueError("No data found in JSON files")
 
         # Step 2: Deduplicate
-        logger.info("🔍 Step 2: Deduplicating data...")
+        logger.info(" Step 2: Deduplicating data...")
         clean_data = preprocessor.deduplicate_data(collections_data)
 
         # Step 3: Chunk and process
-        logger.info("⚙️ Step 3: Processing and chunking...")
+        logger.info("⚙ Step 3: Processing and chunking...")
         processed_chunks = preprocessor.chunk_and_process_data(clean_data)
 
         # Step 4: Generate embeddings
-        logger.info("🧠 Step 4: Generating embeddings...")
+        logger.info(" Step 4: Generating embeddings...")
         embedding_generator = ChangiEmbeddingGenerator(EMBEDDING_MODEL)
         embedded_chunks = embedding_generator.generate_embeddings(processed_chunks)
 
         # Step 5: Upsert to Pinecone - FIXED: Removed PINECONE_ENV parameter
-        logger.info("📌 Step 5: Upserting to Pinecone...")
+        logger.info(" Step 5: Upserting to Pinecone...")
         uploader = PineconeUploader(PINECONE_API_KEY, PINECONE_INDEX)
         uploader.upsert_with_namespaces(embedded_chunks)
 
@@ -719,8 +719,8 @@ def main():
             ns = chunk['namespace']
             namespace_summary[ns] = namespace_summary.get(ns, 0) + 1
 
-        logger.info("\n🎉 PIPELINE COMPLETE!")
-        logger.info("📊 Summary:")
+        logger.info("\n PIPELINE COMPLETE!")
+        logger.info(" Summary:")
         logger.info(f"  Total Chunks: {len(embedded_chunks)}")
         logger.info(f"  Namespaces: {len(namespace_summary)}")
         for ns, count in namespace_summary.items():
@@ -743,10 +743,10 @@ def main():
         with open(report_path, 'w') as f:
             json.dump(report, f, indent=2)
 
-        logger.info(f"📄 Processing report saved: {report_path}")
+        logger.info(f" Processing report saved: {report_path}")
 
     except Exception as e:
-        logger.error(f"❌ Pipeline failed: {e}")
+        logger.error(f" Pipeline failed: {e}")
         raise
 
 
