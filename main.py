@@ -1,4 +1,4 @@
-# Complete Changi Airport Chatbot - Single File for Deployment
+# Complete Changi Airport Chatbot - Production Ready
 import os
 import json
 import asyncio
@@ -8,6 +8,7 @@ from enum import Enum
 import logging
 from datetime import datetime
 import re
+from contextlib import asynccontextmanager
 
 # FastAPI imports
 from fastapi import FastAPI, HTTPException
@@ -27,7 +28,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ===============================================
-# CHATBOT CLASSES (Your existing RAG code)
+# CHATBOT CLASSES
 # ===============================================
 
 class QueryType(Enum):
@@ -59,7 +60,6 @@ class AdvancedQueryAnalyzer:
     """Sophisticated query analysis for multi-domain retrieval"""
 
     def __init__(self):
-        # FIXED: Match exact namespace names used during upsert
         self.categories = ['shops-retail', 'dining', 'services', 'transportation', 'attractions']
         self.locations = ['terminal 1', 'terminal 2', 'terminal 3', 'terminal 4', 'jewel', 'transit area']
         self.dietary_keywords = ['halal', 'vegetarian', 'vegan', 'kosher', 'gluten-free']
@@ -91,7 +91,7 @@ class AdvancedQueryAnalyzer:
 
         return QueryAnalysis(
             query_type=query_type,
-            categories=categories if categories else self.categories,  # Default to all if none specified
+            categories=categories if categories else self.categories,
             location_filters=locations,
             price_filters=price_filters,
             dietary_requirements=dietary,
@@ -163,7 +163,6 @@ class AdvancedQueryAnalyzer:
         return 'general'
 
     def _extract_keywords(self, query: str) -> List[str]:
-        # Simple keyword extraction (can be enhanced with NLP)
         stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by'}
         words = re.findall(r'\b\w+\b', query.lower())
         return [word for word in words if word not in stop_words and len(word) > 2]
@@ -183,7 +182,7 @@ class MultiDomainRetriever:
         analysis = self.query_analyzer.analyze_query(query)
         logger.info(f"Query analysis: {analysis}")
 
-        # FIXED: Add normalize_embeddings=True to match upsert normalization
+        # Generate query embedding
         query_embedding = self.embedding_model.encode(query, normalize_embeddings=True).tolist()
 
         # Execute retrieval strategy based on query type
@@ -198,30 +197,26 @@ class MultiDomainRetriever:
         """Retrieve from multiple namespaces and merge results"""
         all_results = []
 
-        # FIXED: Better distribution logic - only distribute if we have more categories than top_k
         if len(analysis.categories) > top_k:
             k_per_category = max(2, top_k // len(analysis.categories))
         else:
-            k_per_category = top_k  # Request full amount from each category
+            k_per_category = top_k
 
         for category in analysis.categories:
             try:
-                # Build filter for this category
                 filter_dict = self._build_filter(analysis, category)
 
-                # Query this namespace
                 response = self.index.query(
                     vector=query_embedding,
                     top_k=k_per_category,
                     namespace=category,
-                    filter=filter_dict if filter_dict else None,  # Only pass filter if not empty
+                    filter=filter_dict if filter_dict else None,
                     include_metadata=True
                 )
 
-                # FIXED: Process results - use 'text' key instead of 'content'
                 for match in response['matches']:
                     result = RetrievalResult(
-                        content=match['metadata'].get('text', ''),  # FIXED: Changed from 'content' to 'text'
+                        content=match['metadata'].get('text', ''),
                         metadata=match['metadata'],
                         score=match['score'],
                         category=category,
@@ -232,7 +227,7 @@ class MultiDomainRetriever:
             except Exception as e:
                 logger.error(f"Error retrieving from {category}: {e}")
 
-        # Apply additional filtering and boost scores BEFORE sorting
+        # Apply additional filtering and boost scores
         filtered_results = self._apply_post_retrieval_filters(all_results, analysis)
 
         # Sort by relevance and return top results
@@ -250,14 +245,13 @@ class MultiDomainRetriever:
                     vector=query_embedding,
                     top_k=top_k,
                     namespace=category,
-                    filter=filter_dict if filter_dict else None,  # Only pass filter if not empty
+                    filter=filter_dict if filter_dict else None,
                     include_metadata=True
                 )
 
-                # FIXED: Use 'text' key instead of 'content'
                 for match in response['matches']:
                     result = RetrievalResult(
-                        content=match['metadata'].get('text', ''),  # FIXED: Changed from 'content' to 'text'
+                        content=match['metadata'].get('text', ''),
                         metadata=match['metadata'],
                         score=match['score'],
                         category=category,
@@ -268,7 +262,6 @@ class MultiDomainRetriever:
             except Exception as e:
                 logger.error(f"Error in complex retrieval for {category}: {e}")
 
-        # Apply sophisticated filtering and boost scores
         filtered_results = self._apply_post_retrieval_filters(results, analysis)
         return sorted(filtered_results, key=lambda x: x.score, reverse=True)[:top_k]
 
@@ -284,14 +277,13 @@ class MultiDomainRetriever:
                 vector=query_embedding,
                 top_k=top_k,
                 namespace=category,
-                filter=filter_dict if filter_dict else None,  # Only pass filter if not empty
+                filter=filter_dict if filter_dict else None,
                 include_metadata=True
             )
 
-            # FIXED: Use 'text' key instead of 'content'
             for match in response['matches']:
                 result = RetrievalResult(
-                    content=match['metadata'].get('text', ''),  # FIXED: Changed from 'content' to 'text'
+                    content=match['metadata'].get('text', ''),
                     metadata=match['metadata'],
                     score=match['score'],
                     category=category,
@@ -308,13 +300,27 @@ class MultiDomainRetriever:
         """Build Pinecone filter based on query analysis"""
         filter_dict = {}
 
-        # FIXED: Location filtering - use $contains_any instead of $in for substring matching
+        # Location filtering
         if analysis.location_filters:
-            filter_dict['location'] = {'$contains_any': analysis.location_filters}
+            # Use text search for location matching
+            filter_conditions = []
+            for location in analysis.location_filters:
+                filter_conditions.append({"text": {"$contains": location}})
+            if len(filter_conditions) == 1:
+                filter_dict.update(filter_conditions[0])
+            else:
+                filter_dict["$or"] = filter_conditions
 
-        # FIXED: Dietary requirements - use $contains_any instead of $regex
+        # Dietary requirements for dining category
         if analysis.dietary_requirements and category == 'dining':
-            filter_dict['dietary_info'] = {'$contains_any': analysis.dietary_requirements}
+            dietary_conditions = []
+            for dietary in analysis.dietary_requirements:
+                dietary_conditions.append({"text": {"$contains": dietary}})
+            if dietary_conditions:
+                if "$or" in filter_dict:
+                    filter_dict = {"$and": [filter_dict, {"$or": dietary_conditions}]}
+                else:
+                    filter_dict["$or"] = dietary_conditions
 
         return filter_dict
 
@@ -326,7 +332,6 @@ class MultiDomainRetriever:
             # Price filtering
             if analysis.price_filters and 'max_price' in analysis.price_filters:
                 price_text = result.content.lower()
-                # Simple price extraction (can be enhanced)
                 price_matches = re.findall(r'\$(\d+)', price_text)
                 if price_matches:
                     prices = [int(p) for p in price_matches]
@@ -334,11 +339,11 @@ class MultiDomainRetriever:
                     if min_price > analysis.price_filters['max_price']:
                         continue
 
-            # FIXED: Keyword relevance boost - apply BEFORE final sorting
+            # Keyword relevance boost
             content_lower = result.content.lower()
             keyword_matches = sum(1 for keyword in analysis.keywords if keyword in content_lower)
             if keyword_matches > 0:
-                result.score *= (1 + keyword_matches * 0.1)  # Boost score
+                result.score *= (1 + keyword_matches * 0.1)
 
             filtered_results.append(result)
 
@@ -348,33 +353,35 @@ class ChangiAirportChatbot:
     """Main chatbot class with advanced conversational capabilities"""
 
     def __init__(self, pinecone_api_key: str, index_name: str, groq_api_key: str):
-        # Initialize Pinecone with new v3+ API
+        # Initialize Pinecone
         self.pc = Pinecone(api_key=pinecone_api_key)
         self.index = self.pc.Index(index_name)
 
-        # Initialize embedding model
+        # Initialize embedding model with caching
+        logger.info("Loading embedding model...")
         self.embedding_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+        logger.info("Embedding model loaded successfully")
 
         # Initialize components
         self.query_analyzer = AdvancedQueryAnalyzer()
         self.retriever = MultiDomainRetriever(self.index, self.embedding_model, self.query_analyzer)
 
-        # Initialize conversation memory (simple list-based)
+        # Initialize conversation memory
         self.conversation_history = []
-        self.max_history = 10  # Keep last 10 exchanges
+        self.max_history = 10
 
-        # FIXED: Initialize OpenAI client with Groq endpoint and error handling
+        # Initialize OpenAI client with Groq
         try:
             self.client = OpenAI(
                 api_key=groq_api_key,
                 base_url="https://api.groq.com/openai/v1",
                 timeout=30.0
             )
+            self.model_name = "mixtral-8x7b-32768"
+            logger.info("OpenAI client initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize OpenAI client: {e}")
-            # Fallback: try without base_url (this won't work but prevents startup crash)
             self.client = None
-        self.model_name = "mixtral-8x7b-32768"  # Changed to a more reliable model
 
         # Conversation suggestions
         self.suggestions = {
@@ -484,7 +491,7 @@ Remember: You're not just providing information, you're helping create a positiv
             context = self._build_context(retrieved_docs)
 
             # Get conversation history
-            history = self.conversation_history[-6:]  # Last 3 exchanges
+            history = self.conversation_history[-6:]
 
             # Create system prompt
             system_prompt = self._create_system_prompt(analysis)
@@ -540,7 +547,7 @@ I don't have specific context information available right now, but please provid
             self.conversation_history.append({"role": "assistant", "content": ai_response})
             
             # Keep only recent history
-            if len(self.conversation_history) > self.max_history * 2:  # *2 for user+assistant pairs
+            if len(self.conversation_history) > self.max_history * 2:
                 self.conversation_history = self.conversation_history[-self.max_history * 2:]
 
             return {
@@ -593,7 +600,6 @@ I don't have specific context information available right now, but please provid
         if dominant_category == 'shops-retail':
             suggestion_category = 'shopping'
         elif dominant_category in ['attractions']:
-            # Check if we have suggestions for this category
             if dominant_category not in self.suggestions:
                 suggestion_category = 'attractions'
 
@@ -624,44 +630,22 @@ class HealthResponse(BaseModel):
     timestamp: str
     version: str
 
-# Initialize FastAPI app
-app = FastAPI(
-    title="Changi Airport Chatbot API",
-    description="RAG-based chatbot for Changi Airport and Jewel information",
-    version="1.0.0"
-)
-
-# FIXED CORS Configuration - More permissive for debugging
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "https://airport-chatbot-front-end.vercel.app",
-        "https://airport-chatbot-front-7dx5w4cmf-adityas-projects-85f5c679.vercel.app",  # Your current Vercel URL
-        "https://*.vercel.app",
-        "*"  # Allow all origins for now - remove this in production
-    ],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
-    allow_headers=["*"],
-    expose_headers=["*"]
-)
-
-# Add manual OPTIONS handler for better CORS debugging
-@app.options("/{path:path}")
-async def options_handler(path: str):
-    return {"message": "OK"}
-
 # Global chatbot instance
 chatbot = None
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize chatbot on startup"""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifespan"""
     global chatbot
     
+    # Startup
     try:
+        # Set up model caching directories
+        os.makedirs('/tmp/sentence_transformers', exist_ok=True)
+        os.environ.setdefault('SENTENCE_TRANSFORMERS_HOME', '/tmp/sentence_transformers')
+        os.environ.setdefault('TRANSFORMERS_CACHE', '/tmp/sentence_transformers')
+        os.environ.setdefault('HF_HOME', '/tmp/sentence_transformers')
+        
         # Get API keys from environment variables
         PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
         INDEX_NAME = os.getenv("INDEX_NAME", "airportchatbot")
@@ -669,7 +653,7 @@ async def startup_event():
         
         if not PINECONE_API_KEY or not GROQ_API_KEY:
             logger.warning("Missing API keys - running in demo mode")
-            # Don't fail startup, just log warning
+            yield
             return
         
         # Initialize chatbot
@@ -684,7 +668,56 @@ async def startup_event():
         
     except Exception as e:
         logger.error(f"Failed to initialize chatbot: {e}")
-        # Don't raise exception - let the service start anyway
+    
+    yield
+    
+    # Shutdown
+    logger.info("Shutting down...")
+
+# Initialize FastAPI app with lifespan
+app = FastAPI(
+    title="Changi Airport Chatbot API",
+    description="RAG-based chatbot for Changi Airport and Jewel information",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# Enhanced CORS Configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:8080",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:8080",
+        "https://airport-chatbot-front-end.vercel.app",
+        "https://*.vercel.app",
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
+    allow_headers=[
+        "Accept",
+        "Accept-Language",
+        "Content-Language",
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "Origin",
+        "Access-Control-Request-Method",
+        "Access-Control-Request-Headers",
+    ],
+    expose_headers=["*"]
+)
+
+# Manual CORS preflight handler
+@app.options("/{path:path}")
+async def options_handler(path: str):
+    """Handle CORS preflight requests"""
+    return {
+        "message": "OK",
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "headers": ["*"]
+    }
 
 @app.get("/", response_model=HealthResponse)
 @app.get("/health", response_model=HealthResponse)
@@ -700,7 +733,6 @@ async def health_check():
 async def chat_endpoint(request: ChatRequest):
     """Main chat endpoint"""
     if not chatbot:
-        # Return a helpful error message instead of 503
         return ChatResponse(
             response="I'm still starting up! Please wait a moment and try again. If this persists, my services might be temporarily unavailable.",
             sources=[],
@@ -711,7 +743,6 @@ async def chat_endpoint(request: ChatRequest):
         )
     
     try:
-        # Process the chat request
         logger.info(f"Processing chat request: {request.message[:50]}...")
         
         result = await chatbot.chat(request.message)
@@ -785,7 +816,6 @@ async def direct_search(request: ChatRequest):
         logger.error(f"Error in direct search: {e}")
         raise HTTPException(status_code=500, detail="Search functionality unavailable")
 
-# Debug endpoint to check CORS
 @app.get("/cors-test")
 async def cors_test():
     """Test CORS configuration"""
@@ -795,9 +825,8 @@ async def cors_test():
         "headers_received": "OK"
     }
 
-# For deployment - get PORT from environment
-PORT = int(os.environ.get("PORT", 8000))
-
+# For deployment
 if __name__ == "__main__":
     import uvicorn
+    PORT = int(os.environ.get("PORT", 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=PORT, log_level="info")
