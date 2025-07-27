@@ -386,7 +386,7 @@ class ChangiAirportChatbot:
                 base_url="https://api.groq.com/openai/v1",
                 timeout=30.0
             )
-            self.model_name = "mixtral-8x7b-32768"
+            self.model_name = "llama-3.1-70b-versatile"
             logger.info("OpenAI client initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize OpenAI client: {e}")
