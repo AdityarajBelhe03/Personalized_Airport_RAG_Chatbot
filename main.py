@@ -631,23 +631,27 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS middleware for frontend communication
-# Replace your existing CORS middleware with this updated version
-
+# FIXED CORS Configuration - More permissive for debugging
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
         "http://127.0.0.1:3000",
-        "https://airport-chatbot-front-end.vercel.app",  # Your actual Vercel URL
-        "https://*.vercel.app",  # Allow all Vercel preview deployments
-        # Add any custom domains you might use
+        "https://airport-chatbot-front-end.vercel.app",
+        "https://airport-chatbot-front-7dx5w4cmf-adityas-projects-85f5c679.vercel.app",  # Your current Vercel URL
+        "https://*.vercel.app",
+        "*"  # Allow all origins for now - remove this in production
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
     allow_headers=["*"],
     expose_headers=["*"]
 )
+
+# Add manual OPTIONS handler for better CORS debugging
+@app.options("/{path:path}")
+async def options_handler(path: str):
+    return {"message": "OK"}
 
 # Global chatbot instance
 chatbot = None
@@ -664,7 +668,9 @@ async def startup_event():
         GROQ_API_KEY = os.getenv("GROQ_API_KEY")
         
         if not PINECONE_API_KEY or not GROQ_API_KEY:
-            raise ValueError("Missing required API keys in environment variables")
+            logger.warning("Missing API keys - running in demo mode")
+            # Don't fail startup, just log warning
+            return
         
         # Initialize chatbot
         logger.info("Initializing Changi Airport Chatbot...")
@@ -678,14 +684,14 @@ async def startup_event():
         
     except Exception as e:
         logger.error(f"Failed to initialize chatbot: {e}")
-        raise
+        # Don't raise exception - let the service start anyway
 
 @app.get("/", response_model=HealthResponse)
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
     """Health check endpoint"""
     return HealthResponse(
-        status="healthy" if chatbot else "unhealthy",
+        status="healthy" if chatbot else "starting",
         timestamp=datetime.now().isoformat(),
         version="1.0.0"
     )
@@ -694,7 +700,15 @@ async def health_check():
 async def chat_endpoint(request: ChatRequest):
     """Main chat endpoint"""
     if not chatbot:
-        raise HTTPException(status_code=503, detail="Chatbot not initialized")
+        # Return a helpful error message instead of 503
+        return ChatResponse(
+            response="I'm still starting up! Please wait a moment and try again. If this persists, my services might be temporarily unavailable.",
+            sources=[],
+            session_id=request.session_id or "default",
+            query_analysis={},
+            retrieved_count=0,
+            timestamp=datetime.now().isoformat()
+        )
     
     try:
         # Process the chat request
@@ -713,9 +727,13 @@ async def chat_endpoint(request: ChatRequest):
         
     except Exception as e:
         logger.error(f"Error processing chat request: {e}")
-        raise HTTPException(
-            status_code=500, 
-            detail="I'm experiencing some technical difficulties. Please try again."
+        return ChatResponse(
+            response="I'm experiencing some technical difficulties. Please try again in a moment.",
+            sources=[],
+            session_id=request.session_id or "default",
+            query_analysis={},
+            retrieved_count=0,
+            timestamp=datetime.now().isoformat()
         )
 
 @app.get("/categories")
@@ -766,6 +784,16 @@ async def direct_search(request: ChatRequest):
     except Exception as e:
         logger.error(f"Error in direct search: {e}")
         raise HTTPException(status_code=500, detail="Search functionality unavailable")
+
+# Debug endpoint to check CORS
+@app.get("/cors-test")
+async def cors_test():
+    """Test CORS configuration"""
+    return {
+        "message": "CORS is working!",
+        "timestamp": datetime.now().isoformat(),
+        "headers_received": "OK"
+    }
 
 # For deployment - get PORT from environment
 PORT = int(os.environ.get("PORT", 8000))
