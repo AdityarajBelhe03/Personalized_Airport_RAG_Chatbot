@@ -520,7 +520,7 @@ I don't have specific context information available right now, but please provid
             # Add a personalized suggestion
             suggestion = self._generate_suggestion(analysis, retrieved_docs)
             if suggestion:
-                ai_response += f"\n\n💡 {suggestion}"
+                ai_response += f"\n\n {suggestion}"
 
             # Update conversation memory
             self.memory.chat_memory.add_user_message(user_message)
@@ -588,13 +588,13 @@ I don't have specific context information available right now, but please provid
 # ADDED: Quick smoke test function
 async def smoke_test(chatbot):
     """Quick test to verify retrieval is working"""
-    print("🧪 Running smoke test...")
+    print(" Running smoke test...")
 
     try:
         # Test embedding generation
         query = "Rain Vortex operating hours"
         emb = chatbot.embedding_model.encode(query, normalize_embeddings=True).tolist()
-        print(f"✅ Generated embedding for '{query}' (dimension: {len(emb)})")
+        print(f" Generated embedding for '{query}' (dimension: {len(emb)})")
 
         # Test direct Pinecone query
         response = chatbot.index.query(
@@ -604,22 +604,22 @@ async def smoke_test(chatbot):
             include_metadata=True
         )
 
-        print(f"✅ Direct Pinecone query returned {len(response['matches'])} matches")
+        print(f" Direct Pinecone query returned {len(response['matches'])} matches")
 
         if response['matches']:
-            print("📝 Sample match:")
+            print(" Sample match:")
             match = response['matches'][0]
             print(f"   Score: {match['score']:.3f}")
             print(f"   Content preview: {match['metadata'].get('text', 'No text found')[:100]}...")
 
         # Test full chatbot
         result = await chatbot.chat(query)
-        print(f"✅ Full chatbot test: Retrieved {result['retrieved_count']} documents")
+        print(f" Full chatbot test: Retrieved {result['retrieved_count']} documents")
 
         return True
 
     except Exception as e:
-        print(f"❌ Smoke test failed: {e}")
+        print(f" Smoke test failed: {e}")
         return False
 
 # Main execution
@@ -639,15 +639,15 @@ async def main():
         groq_api_key=GROQ_API_KEY
     )
 
-    print("✅ Changi Airport Assistant is ready!")
+    print(" Changi Airport Assistant is ready!")
 
     # Run smoke test
     smoke_test_passed = await smoke_test(chatbot)
     if not smoke_test_passed:
-        print("⚠️  Smoke test failed - there may be issues with retrieval")
+        print("  Smoke test failed - there may be issues with retrieval")
 
     print("=" * 60)
-    print("🌟 Welcome to Changi Airport! I'm here to help you navigate")
+    print(" Welcome to Changi Airport! I'm here to help you navigate")
     print("   our world-class facilities, from dining and shopping to")
     print("   transportation and attractions at Jewel.")
     print("=" * 60)
@@ -657,21 +657,21 @@ async def main():
         try:
             # Get user input
             print("\n" + "─" * 50)
-            user_input = input("✈️  Ask me anything about Changi Airport: ").strip()
+            user_input = input(" Ask me anything about Changi Airport: ").strip()
 
             if user_input.lower() in ['quit', 'exit', 'bye']:
-                print("🙏 Thank you for visiting Changi Airport! Have a wonderful journey!")
+                print("Thank you for visiting Changi Airport! Have a wonderful journey!")
                 break
 
             if not user_input:
                 continue
 
             # Process the query
-            print("\n🔍 Processing your request...")
+            print("\n Processing your request...")
             result = await chatbot.chat(user_input)
 
             # Display response
-            print("\n" + "🤖 Changi Assistant:")
+            print("\n" + " Changi Assistant:")
             print("─" * 50)
             print(result["response"])
 
@@ -679,11 +679,11 @@ async def main():
             if result.get("query_analysis"):
                 query_type = result["query_analysis"].get("query_type", "")
                 categories = result["query_analysis"].get("categories", [])
-                print(f"\n📊 Query Analysis: {query_type} | Categories: {', '.join(categories)}")
-                print(f"📚 Retrieved {result['retrieved_count']} relevant documents")
+                print(f"\n Query Analysis: {query_type} | Categories: {', '.join(categories)}")
+                print(f" Retrieved {result['retrieved_count']} relevant documents")
 
         except KeyboardInterrupt:
-            print("\n\n🙏 Thank you for visiting Changi Airport! Have a wonderful journey!")
+            print("\n\n Thank you for visiting Changi Airport! Have a wonderful journey!")
             break
         except Exception as e:
             print(f"\n❗ An error occurred: {e}")
@@ -704,17 +704,17 @@ def create_chatbot(pinecone_api_key: str, index_name: str, groq_api_key: str):
             index_name=index_name,
             groq_api_key=groq_api_key
         )
-        print("✅ Chatbot initialized successfully with Groq!")
+        print(" Chatbot initialized successfully with Groq!")
         return chatbot
     except Exception as e:
-        print(f"❌ Error initializing chatbot: {e}")
+        print(f" Error initializing chatbot: {e}")
         return None
 
 # Interactive chat function for notebooks
 async def start_interactive_chat(chatbot):
     """Start an interactive chat session in notebook"""
     if chatbot is None:
-        print("❌ Chatbot not initialized. Please create a chatbot first.")
+        print(" Chatbot not initialized. Please create a chatbot first.")
         return
 
     print("🛫 Changi Airport Assistant Ready!")
@@ -726,16 +726,16 @@ async def start_interactive_chat(chatbot):
     while True:
         try:
             # Get user input
-            user_input = input("\n✈️ Your question: ").strip()
+            user_input = input("\n Your question: ").strip()
 
             if user_input.lower() in ['quit', 'exit', 'bye', '']:
-                print("🙏 Thank you for using Changi Airport Assistant!")
+                print(" Thank you for using Changi Airport Assistant!")
                 break
 
-            print("🔍 Processing your request...")
+            print(" Processing your request...")
             result = await chatbot.chat(user_input)
 
-            print("\n🤖 Changi Assistant:")
+            print("\n Changi Assistant:")
             print("-" * 40)
             print(result["response"])
 
@@ -743,11 +743,11 @@ async def start_interactive_chat(chatbot):
             if result.get("query_analysis"):
                 query_type = result["query_analysis"].get("query_type", "")
                 categories = result["query_analysis"].get("categories", [])
-                print(f"\n📊 [Debug] Query Type: {query_type}")
-                print(f"📚 [Debug] Retrieved {result['retrieved_count']} documents")
+                print(f"\n [Debug] Query Type: {query_type}")
+                print(f" [Debug] Retrieved {result['retrieved_count']} documents")
 
         except KeyboardInterrupt:
-            print("\n🙏 Chat ended. Thank you!")
+            print("\n Chat ended. Thank you!")
             break
         except Exception as e:
             print(f"❗ Error: {e}")
@@ -763,17 +763,17 @@ async def test_connections(chatbot):
 
     try:
         # Test Pinecone connection
-        print("📍 Testing Pinecone connection...")
+        print(" Testing Pinecone connection...")
         stats = chatbot.index.describe_index_stats()
-        print(f"✅ Pinecone connected! Index has {stats.total_vector_count} vectors")
+        print(f" Pinecone connected! Index has {stats.total_vector_count} vectors")
 
         # Test embedding model
-        print("🔤 Testing embedding model...")
+        print(" Testing embedding model...")
         test_embedding = chatbot.embedding_model.encode("test query", normalize_embeddings=True)
-        print(f"✅ Embedding model working! Vector dimension: {len(test_embedding)}")
+        print(f" Embedding model working! Vector dimension: {len(test_embedding)}")
 
         # Test Groq API with a simple query
-        print("🤖 Testing Groq API...")
+        print(" Testing Groq API...")
         test_response = chatbot.client.chat.completions.create(
             model=chatbot.model_name,
             messages=[{"role": "user", "content": "Say 'Connection test successful'"}],
@@ -782,13 +782,13 @@ async def test_connections(chatbot):
             top_p=1,
             stream=False
         )
-        print(f"✅ Groq API working! Response: {test_response.choices[0].message.content}")
+        print(f" Groq API working! Response: {test_response.choices[0].message.content}")
 
         return True
 
     except Exception as e:
-        print(f"❌ Connection test failed: {e}")
-        print("\n🔧 Troubleshooting tips:")
+        print(f" Connection test failed: {e}")
+        print("\n Troubleshooting tips:")
         print("1. Check your API keys are correct")
         print("2. Verify your Pinecone index exists and has data")
         print("3. Ensure Groq API key is valid")
@@ -800,7 +800,7 @@ if __name__ == "__main__":
     # Check if we're in a notebook environment
     try:
         get_ipython()
-        print("📝 Notebook environment detected!")
+        print(" Notebook environment detected!")
         print("Use create_chatbot() function to initialize the chatbot.")
         print("Example:")
         print("chatbot = create_chatbot('your-api-key', 'your-index', 'your-groq-key')")
