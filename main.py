@@ -297,30 +297,42 @@ class MultiDomainRetriever:
         return results
 
     def _build_filter(self, analysis: QueryAnalysis, category: str) -> Dict:
-        """Build Pinecone filter based on query analysis"""
+        """Build Pinecone filter based on query analysis - FIXED"""
         filter_dict = {}
 
-        # Location filtering
+        # FIXED: Location filtering - Use metadata field matching instead of $contains
         if analysis.location_filters:
-            # Use text search for location matching
-            filter_conditions = []
-            for location in analysis.location_filters:
-                filter_conditions.append({"text": {"$contains": location}})
-            if len(filter_conditions) == 1:
-                filter_dict.update(filter_conditions[0])
-            else:
-                filter_dict["$or"] = filter_conditions
-
-        # Dietary requirements for dining category
-        if analysis.dietary_requirements and category == 'dining':
-            dietary_conditions = []
-            for dietary in analysis.dietary_requirements:
-                dietary_conditions.append({"text": {"$contains": dietary}})
-            if dietary_conditions:
-                if "$or" in filter_dict:
-                    filter_dict = {"$and": [filter_dict, {"$or": dietary_conditions}]}
+            try:
+                # Assuming your metadata has a 'location' field
+                if len(analysis.location_filters) == 1:
+                    filter_dict["location"] = {"$eq": analysis.location_filters[0]}
                 else:
-                    filter_dict["$or"] = dietary_conditions
+                    filter_dict["location"] = {"$in": analysis.location_filters}
+                logger.info(f"Applied location filter: {filter_dict}")
+            except Exception as e:
+                logger.warning(f"Location filtering failed: {e}")
+                # Skip location filtering if it fails
+
+        # FIXED: Dietary requirements for dining category - Use metadata field matching
+        if analysis.dietary_requirements and category == 'dining':
+            try:
+                # Assuming your metadata has a 'dietary' or 'tags' field
+                dietary_filter = {}
+                if len(analysis.dietary_requirements) == 1:
+                    dietary_filter["dietary"] = {"$eq": analysis.dietary_requirements[0]}
+                else:
+                    dietary_filter["dietary"] = {"$in": analysis.dietary_requirements}
+                
+                # Combine with existing filters using $and
+                if filter_dict:
+                    filter_dict = {"$and": [filter_dict, dietary_filter]}
+                else:
+                    filter_dict = dietary_filter
+                    
+                logger.info(f"Applied dietary filter: {dietary_filter}")
+            except Exception as e:
+                logger.warning(f"Dietary filtering failed: {e}")
+                # Skip dietary filtering if it fails
 
         return filter_dict
 
@@ -339,11 +351,45 @@ class MultiDomainRetriever:
                     if min_price > analysis.price_filters['max_price']:
                         continue
 
+            # Location filtering (post-retrieval fallback)
+            if analysis.location_filters:
+                content_lower = result.content.lower()
+                location_match = any(location.lower() in content_lower for location in analysis.location_filters)
+                if not location_match:
+                    # Also check metadata
+                    metadata_text = str(result.metadata).lower()
+                    location_match = any(location.lower() in metadata_text for location in analysis.location_filters)
+                # Don't skip if no location match - let it through for broader results
+
+            # Dietary filtering (post-retrieval fallback)
+            if analysis.dietary_requirements:
+                content_lower = result.content.lower()
+                dietary_match = any(dietary.lower() in content_lower for dietary in analysis.dietary_requirements)
+                if not dietary_match:
+                    # Also check metadata
+                    metadata_text = str(result.metadata).lower()
+                    dietary_match = any(dietary.lower() in metadata_text for dietary in analysis.dietary_requirements)
+                # Don't skip if no dietary match - let it through for broader results
+
             # Keyword relevance boost
             content_lower = result.content.lower()
             keyword_matches = sum(1 for keyword in analysis.keywords if keyword in content_lower)
             if keyword_matches > 0:
                 result.score *= (1 + keyword_matches * 0.1)
+
+            # Location relevance boost
+            if analysis.location_filters:
+                location_matches = sum(1 for location in analysis.location_filters 
+                                     if location.lower() in content_lower)
+                if location_matches > 0:
+                    result.score *= (1 + location_matches * 0.2)
+
+            # Dietary relevance boost
+            if analysis.dietary_requirements:
+                dietary_matches = sum(1 for dietary in analysis.dietary_requirements 
+                                    if dietary.lower() in content_lower)
+                if dietary_matches > 0:
+                    result.score *= (1 + dietary_matches * 0.15)
 
             filtered_results.append(result)
 
@@ -379,15 +425,43 @@ class ChangiAirportChatbot:
         self.conversation_history = []
         self.max_history = 10
 
-        # Initialize OpenAI client with Groq
+        # Initialize OpenAI client with Groq - UPDATED MODEL
         try:
             self.client = OpenAI(
                 api_key=groq_api_key,
                 base_url="https://api.groq.com/openai/v1",
                 timeout=30.0
             )
-            self.model_name = "llama-3.1-70b-versatile"
-            logger.info("OpenAI client initialized successfully")
+            
+            # FIXED: Updated to use reliable model
+            self.model_name = "llama-3.1-8b-instant"
+            
+            # Test model availability
+            try:
+                models_response = self.client.models.list()
+                available_models = [model.id for model in models_response.data]
+                logger.info(f"✅ Available Groq models: {available_models}")
+                
+                if self.model_name not in available_models:
+                    # Fallback to first available model
+                    fallback_models = ["llama-3.1-8b-instant", "llama-3.2-3b-preview", "gemma2-9b-it"]
+                    for fallback in fallback_models:
+                        if fallback in available_models:
+                            old_model = self.model_name
+                            self.model_name = fallback
+                            logger.warning(f"⚠️ Model {old_model} not available, using {self.model_name}")
+                            break
+                    else:
+                        # Use first available model as last resort
+                        if available_models:
+                            self.model_name = available_models[0]
+                            logger.warning(f"⚠️ Using first available model: {self.model_name}")
+                        
+            except Exception as model_error:
+                logger.warning(f"Could not check model availability: {model_error}")
+            
+            logger.info(f"OpenAI client initialized successfully with model: {self.model_name}")
+            
         except Exception as e:
             logger.error(f"Failed to initialize OpenAI client: {e}")
             self.client = None
