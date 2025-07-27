@@ -270,7 +270,7 @@ Remember: You're not just providing information, you're helping create a positiv
 
         # post-process: drop citations or questions
         answer = re.sub(r'\(.*?source.*?\)', '', answer, flags=re.I)
-        answer = re.sub(r'💡.*', '', answer).strip()
+        answer = re.sub(r'.*', '', answer).strip()
         answer = re.sub(r'\n{3,}', '\n\n', answer)
         
         # Remove any trailing questions
