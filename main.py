@@ -17,8 +17,6 @@ from pydantic import BaseModel
 # Core dependencies
 from pinecone import Pinecone
 from sentence_transformers import SentenceTransformer
-from langchain.memory import ConversationBufferWindowMemory
-from langchain.schema import BaseMessage, HumanMessage, AIMessage
 from openai import OpenAI
 import numpy as np
 from collections import defaultdict
@@ -361,11 +359,9 @@ class ChangiAirportChatbot:
         self.query_analyzer = AdvancedQueryAnalyzer()
         self.retriever = MultiDomainRetriever(self.index, self.embedding_model, self.query_analyzer)
 
-        # Initialize conversation memory
-        self.memory = ConversationBufferWindowMemory(
-            k=10,  # Keep last 10 exchanges
-            return_messages=True
-        )
+        # Initialize conversation memory (simple list-based)
+        self.conversation_history = []
+        self.max_history = 10  # Keep last 10 exchanges
 
         # FIXED: Initialize OpenAI client with Groq endpoint
         self.client = OpenAI(
@@ -482,7 +478,7 @@ Remember: You're not just providing information, you're helping create a positiv
             context = self._build_context(retrieved_docs)
 
             # Get conversation history
-            history = self.memory.chat_memory.messages
+            history = self.conversation_history[-6:]  # Last 3 exchanges
 
             # Create system prompt
             system_prompt = self._create_system_prompt(analysis)
@@ -491,11 +487,8 @@ Remember: You're not just providing information, you're helping create a positiv
             messages = [{"role": "system", "content": system_prompt}]
 
             # Add conversation history
-            for msg in history[-6:]:  # Last 3 exchanges
-                if isinstance(msg, HumanMessage):
-                    messages.append({"role": "user", "content": msg.content})
-                elif isinstance(msg, AIMessage):
-                    messages.append({"role": "assistant", "content": msg.content})
+            for msg in history:
+                messages.append(msg)
 
             # Add current query with context
             if context.strip():
@@ -534,8 +527,12 @@ I don't have specific context information available right now, but please provid
                 ai_response += f"\n\n💡 {suggestion}"
 
             # Update conversation memory
-            self.memory.chat_memory.add_user_message(user_message)
-            self.memory.chat_memory.add_ai_message(ai_response)
+            self.conversation_history.append({"role": "user", "content": user_message})
+            self.conversation_history.append({"role": "assistant", "content": ai_response})
+            
+            # Keep only recent history
+            if len(self.conversation_history) > self.max_history * 2:  # *2 for user+assistant pairs
+                self.conversation_history = self.conversation_history[-self.max_history * 2:]
 
             return {
                 "response": ai_response,
