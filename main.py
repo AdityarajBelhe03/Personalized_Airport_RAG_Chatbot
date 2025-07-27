@@ -632,12 +632,21 @@ app = FastAPI(
 )
 
 # CORS middleware for frontend communication
+# Replace your existing CORS middleware with this updated version
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Restrict to your frontend domain in production
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://airport-chatbot-front-end.vercel.app",  # Your actual Vercel URL
+        "https://*.vercel.app",  # Allow all Vercel preview deployments
+        # Add any custom domains you might use
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 # Global chatbot instance
