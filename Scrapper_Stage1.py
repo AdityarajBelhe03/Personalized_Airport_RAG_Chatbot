@@ -41,4 +41,4 @@ url_config = {
 with open("config/urls.json", "w") as f:
     json.dump(url_config, f, indent=2)
 
-print("✅ Setup complete!")
+print(" Setup complete!")
