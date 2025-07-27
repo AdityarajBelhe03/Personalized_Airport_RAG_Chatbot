@@ -19,7 +19,7 @@ from pinecone import Pinecone
 from sentence_transformers import SentenceTransformer
 from langchain.memory import ConversationBufferWindowMemory
 from langchain.schema import BaseMessage, HumanMessage, AIMessage
-from groq import Groq
+from openai import OpenAI
 import numpy as np
 from collections import defaultdict
 import random
@@ -367,9 +367,12 @@ class ChangiAirportChatbot:
             return_messages=True
         )
 
-        # Initialize Groq client
-        self.client = Groq(api_key=groq_api_key)
-        self.model_name = "moonshotai/kimi-k2-instruct"
+        # FIXED: Initialize OpenAI client with Groq endpoint
+        self.client = OpenAI(
+            api_key=groq_api_key,
+            base_url="https://api.groq.com/openai/v1"
+        )
+        self.model_name = "mixtral-8x7b-32768"  # Changed to a more reliable model
 
         # Conversation suggestions
         self.suggestions = {
@@ -515,14 +518,14 @@ I don't have specific context information available right now, but please provid
                     model=self.model_name,
                     messages=messages,
                     temperature=0.7,
-                    max_completion_tokens=1500,
+                    max_tokens=1500,
                     top_p=1,
-                    stream=False  # Set to False for simpler handling
+                    stream=False
                 )
 
                 ai_response = response.choices[0].message.content
             except Exception as e:
-                logger.error(f"Groq API error: {e}")
+                logger.error(f"OpenAI/Groq API error: {e}")
                 ai_response = f"I'm having trouble connecting to my knowledge base right now. For questions about Changi Airport, I'd recommend checking the official Changi Airport website at changiairport.com or visiting one of the information counters located throughout the terminals."
 
             # Add a personalized suggestion
