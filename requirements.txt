@@ -1,3 +1,6 @@
+# Install PyTorch CPU version first
+--find-links https://download.pytorch.org/whl/cpu/torch_stable.html
+
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 pinecone-client==2.2.4
@@ -8,12 +11,12 @@ numpy==1.24.3
 python-multipart==0.0.6
 httpx==0.25.2
 
-# PyTorch CPU version - use standard PyPI version
-torch==2.1.1
-torchvision==0.16.1
-torchaudio==2.1.1
+# PyTorch CPU versions from official wheel repository
+torch==2.1.1+cpu
+torchvision==0.16.1+cpu
+torchaudio==2.1.1+cpu
 
-# Additional dependencies for sentence-transformers
+# Additional dependencies
 transformers==4.35.2
 scikit-learn==1.3.2
 scipy==1.11.4
