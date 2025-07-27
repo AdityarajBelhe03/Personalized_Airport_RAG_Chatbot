@@ -363,11 +363,17 @@ class ChangiAirportChatbot:
         self.conversation_history = []
         self.max_history = 10  # Keep last 10 exchanges
 
-        # FIXED: Initialize OpenAI client with Groq endpoint
-        self.client = OpenAI(
-            api_key=groq_api_key,
-            base_url="https://api.groq.com/openai/v1"
-        )
+        # FIXED: Initialize OpenAI client with Groq endpoint and error handling
+        try:
+            self.client = OpenAI(
+                api_key=groq_api_key,
+                base_url="https://api.groq.com/openai/v1",
+                timeout=30.0
+            )
+        except Exception as e:
+            logger.error(f"Failed to initialize OpenAI client: {e}")
+            # Fallback: try without base_url (this won't work but prevents startup crash)
+            self.client = None
         self.model_name = "mixtral-8x7b-32768"  # Changed to a more reliable model
 
         # Conversation suggestions
@@ -507,6 +513,9 @@ I don't have specific context information available right now, but please provid
 
             # Generate response
             try:
+                if not self.client:
+                    raise Exception("OpenAI client not initialized")
+                    
                 response = self.client.chat.completions.create(
                     model=self.model_name,
                     messages=messages,
