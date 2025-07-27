@@ -15,8 +15,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-# Core dependencies
-from pinecone import Pinecone
+# Core dependencies - FIXED PINECONE IMPORT
+from pinecone import Pinecone, ServerlessSpec
 from sentence_transformers import SentenceTransformer
 from openai import OpenAI
 import numpy as np
@@ -353,14 +353,23 @@ class ChangiAirportChatbot:
     """Main chatbot class with advanced conversational capabilities"""
 
     def __init__(self, pinecone_api_key: str, index_name: str, groq_api_key: str):
-        # Initialize Pinecone
-        self.pc = Pinecone(api_key=pinecone_api_key)
-        self.index = self.pc.Index(index_name)
+        # Initialize Pinecone - FIXED FOR VERSION 3.0.3
+        try:
+            self.pc = Pinecone(api_key=pinecone_api_key)
+            self.index = self.pc.Index(index_name)
+            logger.info("Pinecone initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize Pinecone: {e}")
+            raise
 
         # Initialize embedding model with caching
         logger.info("Loading embedding model...")
-        self.embedding_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
-        logger.info("Embedding model loaded successfully")
+        try:
+            self.embedding_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+            logger.info("Embedding model loaded successfully")
+        except Exception as e:
+            logger.error(f"Failed to load embedding model: {e}")
+            raise
 
         # Initialize components
         self.query_analyzer = AdvancedQueryAnalyzer()
@@ -641,10 +650,14 @@ async def lifespan(app: FastAPI):
     # Startup
     try:
         # Set up model caching directories
-        os.makedirs('/tmp/sentence_transformers', exist_ok=True)
-        os.environ.setdefault('SENTENCE_TRANSFORMERS_HOME', '/tmp/sentence_transformers')
-        os.environ.setdefault('TRANSFORMERS_CACHE', '/tmp/sentence_transformers')
-        os.environ.setdefault('HF_HOME', '/tmp/sentence_transformers')
+        cache_dir = os.environ.get('SENTENCE_TRANSFORMERS_HOME', '/tmp/sentence_transformers')
+        os.makedirs(cache_dir, exist_ok=True)
+        
+        # Set environment variables for model caching
+        os.environ['SENTENCE_TRANSFORMERS_HOME'] = cache_dir
+        os.environ['TRANSFORMERS_CACHE'] = cache_dir
+        os.environ['HF_HOME'] = cache_dir
+        os.environ['HF_HUB_CACHE'] = cache_dir
         
         # Get API keys from environment variables
         PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
@@ -668,6 +681,7 @@ async def lifespan(app: FastAPI):
         
     except Exception as e:
         logger.error(f"Failed to initialize chatbot: {e}")
+        chatbot = None
     
     yield
     
